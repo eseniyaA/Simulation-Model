@@ -1,4 +1,3 @@
-import { Injectable } from '@angular/core';
 import { alpha, beta, lambda } from '../../shared/const';
 
 export interface AppEvent {
@@ -9,8 +8,7 @@ export interface AppEvent {
   rejectNumber: number;
 }
 
-@Injectable({ providedIn: 'root' })
-export class MainService {
+export class ComputingSystem {
   sources: Source[] = [];
   devices: Device[] = [];
   requests: Requestt[] = [];
@@ -18,6 +16,7 @@ export class MainService {
   bufferQueue: BufferrQueue | undefined;
   requestSize = 0;
   reject = 0;
+  systemTime = 0;
 
   events: AppEvent[] = [];
 
@@ -30,25 +29,37 @@ export class MainService {
     requestSize: number,
     onProcessStop: Function
   ) {
+    this.systemTime = Date.now();
     this.requestSize = requestSize;
 
-    this.sources = Array.from(Array(sourceSize).keys()).map(
-      (i) =>
-        new Source(
-          i + 1,
-          1000,
-          ((beta - alpha) * Math.random() + alpha) * 10,
-          this.onRequest.bind(this)
-        )
-    );
     this.devices = Array.from(Array(deviceSize).keys()).map(
       (i) => new Device(i + 1, this.onDeviceAvailable.bind(this))
     );
+
+    this.sources = Array.from(Array(sourceSize).keys()).map(
+      (i) =>
+        new Source(i + 1, 1000, (beta - alpha) * Math.random() + alpha, this.onRequest.bind(this))
+    );
+
+    console.log(this.devices);
+
     this.bufferList = new BufferList(bufferSize);
     this.bufferQueue = new BufferrQueue([]);
     this.sources.forEach((s) => s.start(s.delta));
 
     this.onProcessStop = onProcessStop;
+    console.log(deviceSize);
+  }
+
+  stop() {
+    // for (let i = 0; i < this.sources.length; i++) {
+    //   delete this.sources[i];
+    //   console.log('source deleted');
+    // }
+    // for (let i = 0; i < this.devices.length; i++) {
+    //   delete this.devices[i];
+    //   console.log('device deleted');
+    // }
   }
 
   onDeviceAvailable(device: Device) {
@@ -86,6 +97,9 @@ export class MainService {
 
       if (sourcesStopped && devicesAvailable && this.onProcessStop) {
         this.onProcessStop(this.events);
+        this.systemTime = Date.now() - this.systemTime;
+        console.log(`Time of program ${this.systemTime}`);
+        console.log(`Time of device in system ${device.workTime}`);
       }
     }
   }
@@ -105,12 +119,14 @@ export class MainService {
 
     if (this.requests.length >= this.requestSize) {
       this.sources.forEach((source) => {
+        console.log('STOPPED');
         source.stop();
       });
     }
 
     // Available device
     let device = this.devices.find((d) => d.available);
+    console.log(this.devices);
 
     if (device) {
       device.process(request).then(() => {
@@ -200,11 +216,11 @@ class Source {
   ) {}
 
   start(delta: number) {
+    delta *= 0.00001;
     if (this.stopped) return;
 
     this.intervalId = setInterval(() => {
       console.log(`from source: ${this.number}`);
-      console.log(`generating time ${delta}`);
 
       this.generate();
 
@@ -229,14 +245,18 @@ class Source {
 
 class Device {
   available = true;
+  workTime = 0;
   requests: Requestt[] = [];
 
-  constructor(public number: number, private onDeviceAvailable: Function) {}
+  constructor(public number: number, private onDeviceAvailable: Function) {
+    console.log(`device ${number} created`);
+  }
 
   async process(request: Requestt) {
     this.available = false;
-    const delta = (-1 / lambda) * Math.log(Math.random());
+    const delta = (-1 / lambda) * Math.log(Math.random()) * 0.001;
     request.timeInSystem += delta;
+    this.workTime += delta;
     console.log(delta);
     console.log(`time in system of curReq ${request.timeInSystem}`);
 

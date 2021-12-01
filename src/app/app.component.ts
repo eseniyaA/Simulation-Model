@@ -1,6 +1,8 @@
 import { Component } from '@angular/core';
-import { AppEvent, MainService } from './services/main.service';
+import { AppEvent, ComputingSystem } from './services/computing-system.service';
 import { FormControl, FormGroup } from '@angular/forms';
+import { PrimeNGConfig } from 'primeng/api';
+import { AutomodeService } from '../shared/automode.service';
 
 @Component({
   selector: 'app-root',
@@ -16,41 +18,83 @@ export class AppComponent {
   });
 
   events: AppEvent[] = [];
-  showEvents: AppEvent[] = [];
+  stepEvents: AppEvent[] = [];
+  statisticData: any[] = [];
+  statisticOptions: any;
 
-  constructor(private mainService: MainService) {}
+  constructor(private primengConfig: PrimeNGConfig, private automodeService: AutomodeService) {}
+
+  ngOnInit() {
+    this.primengConfig.ripple = true;
+  }
 
   run() {
     this.events = [];
+    this.stepEvents = [];
 
     const sourceSize = this.form.get('sourceSize')?.value;
     const devicesSize = this.form.get('devicesSize')?.value;
     const bufferSize = this.form.get('bufferSize')?.value;
     const requestsSize = this.form.get('requestsSize')?.value;
 
-    this.mainService.start(
-      sourceSize,
-      bufferSize,
-      devicesSize,
-      requestsSize,
+    const system = new ComputingSystem();
+
+    system.start(
+      Number(sourceSize),
+      Number(bufferSize),
+      Number(devicesSize),
+      Number(requestsSize),
       this.onProcessStop.bind(this)
     );
+  }
 
-    // console.log(this.mainService.events);
+  async runAuto() {
+    this.statisticData = this.automodeService.run(this.statisticData, this.onProcessStop);
+    this.applyLightTheme();
   }
 
   stop() {
-    // this.mainService.stop()
+    // this.mainService.stop();
   }
 
-  showEvent() {
-    const number = this.showEvents.length;
-    this.showEvents.push(this.events[number]);
+  showStep() {
+    if (this.stepEvents.length === this.events.length) return;
+
+    this.stepEvents.push(this.events[this.stepEvents.length]);
   }
 
   onProcessStop(events: AppEvent[]) {
-    console.log(events);
-
+    this.stop();
     this.events = events;
+  }
+
+  applyLightTheme() {
+    this.statisticOptions = {
+      plugins: {
+        legend: {
+          labels: {
+            color: '#495057',
+          },
+        },
+      },
+      scales: {
+        x: {
+          ticks: {
+            color: '#495057',
+          },
+          grid: {
+            color: '#ebedef',
+          },
+        },
+        y: {
+          ticks: {
+            color: '#495057',
+          },
+          grid: {
+            color: '#ebedef',
+          },
+        },
+      },
+    };
   }
 }
