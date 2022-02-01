@@ -60,21 +60,66 @@
           <th>Событие</th>
           <th>Количество заявок</th>
           <th>Количество отказов</th>
+          <th>Номер заявки</th>
         </tr>
       </ng-template>
       <ng-template pTemplate="body" let-event>
         <tr>
           <td>{{ event.source }}</td>
-          <td>{{ event.time | date: "ss.sssssss" }}</td>
+          <td>{{ event.time | date: "ss.SSS" }}</td>
           <td>{{ event.availability ? "свободен" : "занят" }}</td>
           <td>{{ event.localRequests }}</td>
           <td>{{ event.rejectNumber }}</td>
+          <td>{{ event.requestNumber }}</td>
         </tr>
       </ng-template>
     </p-table>
   </div>
 </div>
 
-<div class="card">
-  <p-chart type="line" [data]="statisticData[0]" [options]="statisticOptions"></p-chart>
+<div *ngIf="statisticData && statisticData.length > 0" class="charts">
+  <div class="chart-group">
+    <h3>По количеству приборов</h3>
+    <div class="card">
+      <p-chart type="line" [data]="statisticData[0]" [options]="statisticOptions"></p-chart>
+    </div>
+
+    <div class="card">
+      <p-chart type="line" [data]="statisticData[1]" [options]="statisticOptions"></p-chart>
+    </div>
+
+    <div class="card">
+      <p-chart type="line" [data]="statisticData[2]" [options]="statisticOptions"></p-chart>
+    </div>
+  </div>
+
+  <div class="chart-group">
+    <h3>По количеству буферов</h3>
+    <div class="card">
+      <p-chart type="line" [data]="statisticData[3]" [options]="statisticOptions"></p-chart>
+    </div>
+
+    <div class="card">
+      <p-chart type="line" [data]="statisticData[4]" [options]="statisticOptions"></p-chart>
+    </div>
+
+    <div class="card">
+      <p-chart type="line" [data]="statisticData[5]" [options]="statisticOptions"></p-chart>
+    </div>
+  </div>
+
+  <div class="chart-group">
+    <h3>По количеству источников</h3>
+    <div class="card">
+      <p-chart type="line" [data]="statisticData[6]" [options]="statisticOptions"></p-chart>
+    </div>
+
+    <div class="card">
+      <p-chart type="line" [data]="statisticData[7]" [options]="statisticOptions"></p-chart>
+    </div>
+
+    <div class="card">
+      <p-chart type="line" [data]="statisticData[8]" [options]="statisticOptions"></p-chart>
+    </div>
+  </div>
 </div>

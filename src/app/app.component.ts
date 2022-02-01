@@ -2,7 +2,7 @@ import { Component } from '@angular/core';
 import { AppEvent, ComputingSystem } from './services/computing-system.service';
 import { FormControl, FormGroup } from '@angular/forms';
 import { PrimeNGConfig } from 'primeng/api';
-import { AutomodeService } from '../shared/automode.service';
+import { AutomodeService } from './services/automode.service';
 
 @Component({
   selector: 'app-root',
@@ -11,10 +11,10 @@ import { AutomodeService } from '../shared/automode.service';
 })
 export class AppComponent {
   form = new FormGroup({
-    sourceSize: new FormControl(3),
-    bufferSize: new FormControl(3),
+    sourceSize: new FormControl(13),
+    bufferSize: new FormControl(5),
     devicesSize: new FormControl(3),
-    requestsSize: new FormControl(12),
+    requestsSize: new FormControl(2500),
   });
 
   events: AppEvent[] = [];
@@ -49,12 +49,8 @@ export class AppComponent {
   }
 
   async runAuto() {
-    this.statisticData = this.automodeService.run(this.statisticData, this.onProcessStop);
+    this.statisticData = await this.automodeService.run(this.statisticData, this.onProcessStop);
     this.applyLightTheme();
-  }
-
-  stop() {
-    // this.mainService.stop();
   }
 
   showStep() {
@@ -64,7 +60,6 @@ export class AppComponent {
   }
 
   onProcessStop(events: AppEvent[]) {
-    this.stop();
     this.events = events;
   }
 

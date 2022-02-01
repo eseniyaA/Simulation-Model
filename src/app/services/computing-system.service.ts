@@ -1,11 +1,12 @@
-import { alpha, beta, lambda } from '../../shared/const';
+import { lambda } from '../../shared/const';
 
 export interface AppEvent {
   source: string;
   time: number;
   availability: boolean;
   localRequests: number;
-  rejectNumber: number;
+  rejectNumber: string;
+  requestNumber: string;
 }
 
 export class ComputingSystem {
@@ -22,6 +23,10 @@ export class ComputingSystem {
 
   onProcessStop: Function | undefined;
 
+  resolve: Function | undefined;
+
+  constructor() {}
+
   start(
     sourceSize: number,
     bufferSize: number,
@@ -30,39 +35,38 @@ export class ComputingSystem {
     onProcessStop: Function
   ) {
     this.systemTime = Date.now();
-    this.requestSize = requestSize;
 
-    this.devices = Array.from(Array(deviceSize).keys()).map(
-      (i) => new Device(i + 1, this.onDeviceAvailable.bind(this))
-    );
+    return new Promise<ComputingSystem>((resolve) => {
+      console.log('COMPUTING SYSTEM START');
+      this.resolve = resolve;
+      this.requestSize = requestSize;
 
-    this.sources = Array.from(Array(sourceSize).keys()).map(
-      (i) =>
-        new Source(i + 1, 1000, (beta - alpha) * Math.random() + alpha, this.onRequest.bind(this))
-    );
+      this.devices = Array.from(Array(deviceSize).keys()).map(
+        (i) => new Device(i + 1, this.onDeviceAvailable.bind(this))
+      );
 
-    console.log(this.devices);
+      this.sources = Array.from(Array(sourceSize).keys()).map(
+        (i) => new Source(i + 1, (-1 / lambda) * Math.log(Math.random()), this.onRequest.bind(this))
+      );
 
-    this.bufferList = new BufferList(bufferSize);
-    this.bufferQueue = new BufferrQueue([]);
-    this.sources.forEach((s) => s.start(s.delta));
+      this.bufferList = new BufferList(bufferSize);
+      this.bufferQueue = new BufferrQueue([]);
+      this.sources.forEach((s) => s.start(s.delta));
 
-    this.onProcessStop = onProcessStop;
-    console.log(deviceSize);
-  }
-
-  stop() {
-    // for (let i = 0; i < this.sources.length; i++) {
-    //   delete this.sources[i];
-    //   console.log('source deleted');
-    // }
-    // for (let i = 0; i < this.devices.length; i++) {
-    //   delete this.devices[i];
-    //   console.log('device deleted');
-    // }
+      this.onProcessStop = onProcessStop;
+    });
   }
 
   onDeviceAvailable(device: Device) {
+    this.events.push({
+      source: `device ${device!.number}`,
+      time: Date.now(),
+      availability: device!.available,
+      localRequests: device!.requests.length,
+      rejectNumber: `${this.reject}`,
+      requestNumber: '',
+    });
+
     const buffer = this.bufferQueue!.dequeue();
 
     if (buffer) {
@@ -74,32 +78,36 @@ export class ComputingSystem {
         buffer.request = undefined;
 
         this.events.push({
-          source: `device ${device.number}`,
-          time: Date.now(),
-          availability: device.available,
-          localRequests: device.requests.length,
-          rejectNumber: this.reject,
-        });
-
-        this.events.push({
           source: `buffer ${buffer.number}`,
           time: Date.now(),
           availability: buffer.available,
           localRequests: buffer.localRequests,
-          rejectNumber: this.reject,
+          rejectNumber: `${this.reject}`,
+          requestNumber: `${buffer.request!.source!.number}.${buffer.request!.number}`,
         });
       });
     } else {
       const sourcesStopped = this.sources.every((s) => s.stopped);
       const devicesAvailable = this.devices.every((s) => s.available);
 
-      console.log(sourcesStopped, devicesAvailable);
-
       if (sourcesStopped && devicesAvailable && this.onProcessStop) {
         this.onProcessStop(this.events);
+
         this.systemTime = Date.now() - this.systemTime;
         console.log(`Time of program ${this.systemTime}`);
         console.log(`Time of device in system ${device.workTime}`);
+        console.log(
+          `Rejection probability ${this.rejectionProbability(this.reject, this.requests.length)}`
+        );
+        console.log(
+          `Average time in system of request ${this.averageTimeOfRequest(this.requests)}`
+        );
+        console.log(
+          `Average usage of device ${this.averageUsageOfDevice(this.devices, this.systemTime)}`
+        );
+
+        console.log('COMPUTING SYSTEM STOP');
+        if (this.resolve) this.resolve(this);
       }
     }
   }
@@ -110,23 +118,23 @@ export class ComputingSystem {
       time: Date.now(),
       availability: true,
       localRequests: request.source.localRequests,
-      rejectNumber: this.reject,
+      rejectNumber: `${this.reject}`,
+      requestNumber: `${request.source!.number}.${request.number}`,
     });
 
     this.requests.push(request);
+    request.timeInSystem = Date.now() - request.timeInSystem;
 
     console.log(`REQUEST LENGTH: ${this.requests.length}`);
 
     if (this.requests.length >= this.requestSize) {
       this.sources.forEach((source) => {
-        console.log('STOPPED');
         source.stop();
       });
     }
 
     // Available device
     let device = this.devices.find((d) => d.available);
-    console.log(this.devices);
 
     if (device) {
       device.process(request).then(() => {
@@ -135,8 +143,17 @@ export class ComputingSystem {
           time: Date.now(),
           availability: device!.available,
           localRequests: device!.requests.length,
-          rejectNumber: this.reject,
+          rejectNumber: `${this.reject}`,
+          requestNumber: `${request.source.number}.${request.number}`,
         });
+      });
+      this.events.push({
+        source: `device ${device!.number}`,
+        time: Date.now(),
+        availability: device!.available,
+        localRequests: device!.requests.length,
+        rejectNumber: `${this.reject}`,
+        requestNumber: `${request.source.number}.${request.number}`,
       });
     } else {
       const curBuffer = this.bufferList!.current();
@@ -157,7 +174,8 @@ export class ComputingSystem {
           time: Date.now(),
           availability: curBuffer.available,
           localRequests: curBuffer.localRequests,
-          rejectNumber: this.reject,
+          rejectNumber: `${this.reject}`,
+          requestNumber: `${request.source.number}.${request.number}`,
         });
       } else {
         let availableBuffer = this.bufferList!.findAvailable(curBuffer);
@@ -166,19 +184,25 @@ export class ComputingSystem {
           availableBuffer = this.bufferList!.findAvailable();
 
           if (!availableBuffer && curBuffer) {
+            let rejectedRequest = curBuffer.request;
+            curBuffer!.current = false;
             curBuffer.request = request;
             curBuffer.timeInBuffer = Date.now();
-            console.log(`REJECT LENGTH ${this.reject++}`);
+            curBuffer.next!.current = true;
+            this.reject = this.reject + 1;
+
+            console.log(`REJECT LENGTH ${this.reject}`);
 
             this.events.push({
               source: `buffer ${curBuffer.number}`,
               time: Date.now(),
               availability: curBuffer.available,
               localRequests: curBuffer.localRequests,
-              rejectNumber: this.reject,
+              rejectNumber: `${this.reject} ${rejectedRequest!.source.number}.${
+                rejectedRequest!.number
+              }`,
+              requestNumber: `${request.source.number}.${request.number}`,
             });
-
-            console.log(this.devices.filter((d) => !d.available));
           }
         } else {
           curBuffer!.current = false;
@@ -195,11 +219,28 @@ export class ComputingSystem {
             time: Date.now(),
             availability: availableBuffer.available,
             localRequests: availableBuffer.localRequests,
-            rejectNumber: this.reject,
+            rejectNumber: `${this.reject}`,
+            requestNumber: `${request.source.number}.${request.number}`,
           });
         }
       }
     }
+  }
+
+  rejectionProbability(rejectedNum: number, allRequestsNum: number): number {
+    return rejectedNum / allRequestsNum;
+  }
+
+  averageTimeOfRequest(requests: any[]): number {
+    let timeSum = 0;
+    requests.forEach((req) => (timeSum += req.timeInSystem));
+    return timeSum / requests.length;
+  }
+
+  averageUsageOfDevice(devices: Device[], systemTime: number) {
+    let commonK = devices.reduce((acc, val) => acc + val.workTime, 0) / devices.length;
+
+    return commonK / systemTime;
   }
 }
 
@@ -208,26 +249,19 @@ class Source {
   intervalId: any;
   stopped = false;
 
-  constructor(
-    public number: string | number,
-    public time: number,
-    public delta: number,
-    public onRequest: Function
-  ) {}
+  constructor(public number: string | number, public delta: number, public onRequest: Function) {}
 
   start(delta: number) {
     delta *= 0.00001;
     if (this.stopped) return;
 
     this.intervalId = setInterval(() => {
-      console.log(`from source: ${this.number}`);
-
       this.generate();
 
       clearInterval(this.intervalId);
 
       this.start(delta);
-    }, this.time + delta);
+    }, delta);
   }
 
   stop() {
@@ -238,6 +272,7 @@ class Source {
 
   generate() {
     const req = new Requestt(this.localRequests + 1, this);
+    req.timeInSystem = Date.now();
     this.localRequests++;
     this.onRequest(req);
   }
@@ -246,23 +281,22 @@ class Source {
 class Device {
   available = true;
   workTime = 0;
+  prevTime = 0;
   requests: Requestt[] = [];
 
-  constructor(public number: number, private onDeviceAvailable: Function) {
-    console.log(`device ${number} created`);
-  }
+  constructor(public number: number, private onDeviceAvailable: Function) {}
 
   async process(request: Requestt) {
     this.available = false;
-    const delta = (-1 / lambda) * Math.log(Math.random()) * 0.001;
-    request.timeInSystem += delta;
-    this.workTime += delta;
+    const delta = (-1 / 0.2) * Math.log(Math.random()) * this.number;
+
     console.log(delta);
-    console.log(`time in system of curReq ${request.timeInSystem}`);
+    console.log(`process delta ${delta}`);
+
+    const t1 = Date.now();
 
     return new Promise((resolve) => {
       setTimeout(() => {
-        console.log(`device processing request ${request.source.number}.${request.number}`);
         request.timeInSystem += delta;
         this.requests.push(request);
 
@@ -270,8 +304,10 @@ class Device {
 
         this.onDeviceAvailable(this);
 
-        resolve(null);
-      }, delta);
+        resolve(this);
+
+        this.workTime += Date.now() - t1;
+      }, delta / 100);
     });
   }
 }
